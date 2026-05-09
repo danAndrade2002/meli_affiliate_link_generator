@@ -2,3 +2,6 @@ node_modules/
 .env
 credentials.json
 token.json
+session.json
+cookies.json
+affiliate_cache.json
