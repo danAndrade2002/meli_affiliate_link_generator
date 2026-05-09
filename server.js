@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createAffiliateLink, SessionExpiredError } = require('./createAffiliateLink');
+const db = require('./db');
 require('dotenv').config();
 
 const app = express();
@@ -10,7 +11,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const DEFAULT_TAG = process.env.MELI_AFFILIATE_TAG || 'oliveiradanilo20211125223941';
-const CACHE_PATH = path.join(process.cwd(), 'affiliate_cache.json');
 const API_KEY = process.env.API_KEY;
 
 // ---------- Logger ----------
@@ -56,19 +56,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// ---------- Cache ----------
-function loadCache() {
-    try {
-        return JSON.parse(fs.readFileSync(CACHE_PATH, 'utf-8'));
-    } catch {
-        return {};
-    }
-}
-
-function saveCache(cache) {
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
-}
-
 // ---------- API key middleware ----------
 app.use((req, res, next) => {
     if (!API_KEY) return next();
@@ -99,13 +86,12 @@ app.post('/affiliate-links', async (req, res) => {
         force
     });
 
-    const cache = loadCache();
     const results = [];
     const urlsToGenerate = [];
 
     for (const url of urls) {
-        const cached = cache[url];
-        if (cached && cached.tag === tag && !force) {
+        const cached = await db.getCacheEntry(url, tag);
+        if (cached && !force) {
             results.push({ origin_url: url, ...cached, cached: true });
         } else {
             urlsToGenerate.push(url);
@@ -139,7 +125,7 @@ app.post('/affiliate-links', async (req, res) => {
                         tag: r.tag,
                         generated_at: new Date().toISOString()
                     };
-                    cache[r.origin_url] = entry;
+                    await db.setCacheEntry(r.origin_url, r.tag, r.affiliate_link, entry.generated_at);
                     results.push({
                         origin_url: r.origin_url,
                         status: 'success',
@@ -155,7 +141,6 @@ app.post('/affiliate-links', async (req, res) => {
                     });
                 }
             }
-            saveCache(cache);
 
             logger.info(`Upstream generation complete`, {
                 reqId: req.id,
@@ -193,12 +178,8 @@ app.post('/affiliate-links', async (req, res) => {
     });
 });
 
-app.get('/affiliate-links', (req, res) => {
-    const cache = loadCache();
-    const results = Object.entries(cache).map(([origin_url, entry]) => ({
-        origin_url,
-        ...entry
-    }));
+app.get('/affiliate-links', async (req, res) => {
+    const results = await db.getAllCacheEntries();
     logger.debug(`Listing cached links`, { reqId: req.id, count: results.length });
     res.json({ count: results.length, results });
 });
@@ -209,10 +190,17 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'internal_error', message: err.message });
 });
 
-app.listen(PORT, () => {
-    logger.info(`Affiliate link server listening on http://localhost:${PORT}`, {
-        log_level: LOG_LEVEL,
-        api_key_required: !!API_KEY,
-        default_tag: DEFAULT_TAG
+(async () => {
+    await db.waitForDb();
+    await db.initDb();
+    app.listen(PORT, () => {
+        logger.info(`Affiliate link server listening on http://localhost:${PORT}`, {
+            log_level: LOG_LEVEL,
+            api_key_required: !!API_KEY,
+            default_tag: DEFAULT_TAG
+        });
     });
+})().catch(err => {
+    logger.error('Startup failed', { message: err.message });
+    process.exit(1);
 });
