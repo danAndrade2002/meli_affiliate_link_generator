@@ -1,0 +1,24 @@
+{
+  "name": "meli_affiliate_link_generator",
+  "version": "1.0.0",
+  "main": "Meli_Login.js",
+  "scripts": {
+    "test": "node --test test/unit/",
+    "test:watch": "node --test --watch test/unit/",
+    "start": "node server.js",
+    "login": "node Meli_Login.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "googleapis": "^105.0.0",
+    "puppeteer": "^24.43.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "cookieHeader": "test_cookie=test_value; ssid=test_ssid",
+  "relevantCookieHeader": "ssid=test_ssid",
+  "csrfToken": "test-csrf-token",
+  "relevantCookies": { "ssid": "test_ssid" },
+  "userAgent": "Mozilla/5.0 Test",
+  "capturedAt": "2026-05-07T00:00:00.000Z"
+}
