@@ -259,6 +259,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+    runLoginFlow,
     getEmailBody,
     extractOTP,
     formatCookieHeader,

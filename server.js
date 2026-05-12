@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createAffiliateLink, SessionExpiredError } = require('./createAffiliateLink');
+const { runLoginFlow } = require('./Meli_Login');
 const db = require('./db');
 require('dotenv').config();
 
@@ -37,6 +38,51 @@ const logger = {
     warn:  (m, meta) => log('warn',  m, meta),
     error: (m, meta) => log('error', m, meta),
 };
+
+// ---------- Auto re-login (mutex to avoid parallel logins) ----------
+let activeLoginPromise = null;
+
+/**
+ * Triggers the puppeteer login flow to refresh session.json. If a login is
+ * already in progress, returns the same in-flight promise so concurrent
+ * requests don't spawn multiple browser windows.
+ */
+async function refreshSession(reqId) {
+    if (activeLoginPromise) {
+        logger.info('Waiting for in-progress login to finish', { reqId });
+        return activeLoginPromise;
+    }
+    logger.warn('Starting automatic re-login (browser will open)', { reqId });
+    activeLoginPromise = runLoginFlow()
+        .then(() => logger.info('Re-login successful', { reqId }))
+        .catch(err => {
+            logger.error('Re-login failed', { reqId, message: err.message });
+            throw err;
+        })
+        .finally(() => { activeLoginPromise = null; });
+    return activeLoginPromise;
+}
+
+/**
+ * Calls createAffiliateLink. If the session is expired, triggers re-login
+ * and retries the call exactly once.
+ */
+async function createAffiliateLinkWithRetry(urls, tag, reqId) {
+    try {
+        return await createAffiliateLink(urls, tag);
+    } catch (err) {
+        if (!(err instanceof SessionExpiredError)) throw err;
+
+        logger.warn('Session expired — attempting auto re-login', {
+            reqId,
+            reason: err.message
+        });
+        await refreshSession(reqId);
+
+        logger.info('Retrying upstream call after re-login', { reqId });
+        return createAffiliateLink(urls, tag);
+    }
+}
 
 // ---------- Request logging middleware ----------
 app.use((req, res, next) => {
@@ -104,7 +150,7 @@ app.post('/affiliate-links', async (req, res) => {
         const t0 = Date.now();
         try {
             logger.debug('Calling Mercado Livre API', { reqId: req.id, urls: urlsToGenerate });
-            const apiResult = await createAffiliateLink(urlsToGenerate, tag);
+            const apiResult = await createAffiliateLinkWithRetry(urlsToGenerate, tag, req.id);
 
             if (apiResult.http_status !== 200) {
                 logger.error('Mercado Livre API returned non-200', {
@@ -150,11 +196,16 @@ app.post('/affiliate-links', async (req, res) => {
             });
         } catch (err) {
             if (err instanceof SessionExpiredError) {
-                logger.error('Session expired', { reqId: req.id, message: err.message, status: err.status });
+                // Only reached if re-login itself failed after the retry
+                logger.error('Session expired and re-login failed', {
+                    reqId: req.id,
+                    message: err.message,
+                    status: err.status
+                });
                 return res.status(401).json({
                     error: 'session_expired',
                     message: err.message,
-                    action: 'Run `node Meli_Login.js` to re-authenticate.'
+                    action: 'Automatic re-login failed. Run `node Meli_Login.js` manually and check logs.'
                 });
             }
             logger.error('Link generation failed', { reqId: req.id, message: err.message, stack: err.stack });
