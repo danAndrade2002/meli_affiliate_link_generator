@@ -148,7 +148,7 @@ async function runLoginFlow() {
     console.log('Gmail authorized.');
 
     const browser = await puppeteer.launch({
-        headless: false,
+        headless: true,
         args: ['--no-sandbox', '--disable-blink-features=AutomationControlled']
     });
     const page = await browser.newPage();
