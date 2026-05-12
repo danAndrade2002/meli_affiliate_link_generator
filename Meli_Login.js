@@ -12,7 +12,6 @@ puppeteer.use(StealthPlugin());
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
 const TOKEN_PATH = path.join(process.cwd(), 'token.json');
 const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json');
-const COOKIES_PATH = path.join(process.cwd(), 'cookies.json');
 const SESSION_PATH = path.join(process.cwd(), 'session.json');
 
 // Cookies required by the affiliate API
@@ -210,8 +209,7 @@ async function runLoginFlow() {
     await new Promise(r => setTimeout(r, 2000));
 
     const allCookies = await page.cookies();
-    await fs.writeFile(COOKIES_PATH, JSON.stringify(allCookies, null, 2));
-    console.log(`Saved ${allCookies.length} cookies to cookies.json`);
+    console.log(`Captured ${allCookies.length} cookies`);
 
     const csrfToken = await page.evaluate(() => {
         const meta = document.querySelector('meta[name="csrf-token"]') ||

@@ -85,7 +85,7 @@ What happens:
 5. The script polls your Gmail inbox for the OTP (up to ~45 seconds).
 6. The OTP is typed and the login is completed.
 7. The browser navigates to the affiliate linkbuilder page to capture the CSRF token.
-8. All cookies and session metadata are saved to `session.json` and `cookies.json`.
+8. Cookies and session metadata are saved to `session.json`.
 
 **First run prompts you once for Gmail OAuth. Subsequent logins are fully unattended.**
 
@@ -109,7 +109,6 @@ You should see:
 | `credentials.json` | you (from Google) | `Meli_Login.js` | Gmail API OAuth client |
 | `token.json` | `Meli_Login.js` | `Meli_Login.js` | cached Gmail refresh token |
 | `session.json` | `Meli_Login.js` | `server.js` | Mercado Livre cookies + CSRF token |
-| `cookies.json` | `Meli_Login.js` | reference only | full cookie dump |
 | `affiliate_cache.json` | `server.js` | `server.js` | URL → affiliate link cache |
 
 ## API
@@ -252,7 +251,7 @@ The URL isn't a valid Mercado Livre product page. Make sure the URL has a produc
 
 ## Security notes
 
-- `.env`, `credentials.json`, `token.json`, `session.json`, and `cookies.json` are all gitignored by default. Don't commit them.
+- `.env`, `credentials.json`, `token.json`, and `session.json` are all gitignored by default. Don't commit them.
 - Anyone with your `session.json` can make authenticated requests as you until the session expires. Treat it like a password.
 - If you expose the server outside localhost (e.g. via ngrok), always set `API_KEY` in `.env`.
 
@@ -274,6 +273,5 @@ The URL isn't a valid Mercado Livre product page. Make sure the URL has a produc
 ├── credentials.json         # you create this (Google OAuth client)
 ├── token.json               # auto-generated (Gmail refresh token)
 ├── session.json             # auto-generated (ML session)
-├── cookies.json             # auto-generated (full cookie dump)
 └── affiliate_cache.json     # auto-generated (URL → link cache)
 ```
