@@ -252,6 +252,6 @@ app.use((err, req, res, next) => {
         });
     });
 })().catch(err => {
-    logger.error('Startup failed', { message: err.message });
+    logger.error('Startup failed', { message: err.message, code: err.code, stack: err.stack });
     process.exit(1);
 });
