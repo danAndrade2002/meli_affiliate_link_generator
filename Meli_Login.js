@@ -185,6 +185,10 @@ async function runLoginFlow() {
     await new Promise(r => setTimeout(r, 2000));
 
     console.log('Waiting for OTP email...');
+    await page.screenshot({ path: '/tmp/meli-otp-wait.png', fullPage: true }).catch(() => {});
+    const html = await page.content().catch(() => '');
+    await fs.writeFile('/tmp/meli-otp-wait.html', html).catch(() => {});
+    console.log('Captured page state to /tmp/meli-otp-wait.{png,html} for debugging');
     const gmail = google.gmail({ version: 'v1', auth });
     const otp = await pollGmailForOTP(gmail);
     console.log('OTP received:', otp);
