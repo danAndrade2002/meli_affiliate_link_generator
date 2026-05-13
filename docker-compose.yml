@@ -2,6 +2,10 @@ services:
   db:
     image: postgres:16-alpine
     env_file: .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +26,6 @@ services:
       - ./session.json:/app/session.json:ro
       - ./token.json:/app/token.json:ro
       - ./credentials.json:/app/credentials.json:ro
-      - ./cookies.json:/app/cookies.json:ro
 
 volumes:
   pgdata:
