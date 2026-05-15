@@ -23,8 +23,8 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./session.json:/app/session.json:ro
-      - ./token.json:/app/token.json:ro
+      - ./session.json:/app/session.json
+      - ./token.json:/app/token.json
       - ./credentials.json:/app/credentials.json:ro
 
 volumes:
