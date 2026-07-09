@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createAffiliateLink, SessionExpiredError } = require('./createAffiliateLink');
+const { searchProducts } = require('./scrapeSearch');
 const { runLoginFlow } = require('./Meli_Login');
 const db = require('./db');
 require('dotenv').config();
@@ -227,6 +228,33 @@ app.post('/affiliate-links', async (req, res) => {
         error_count: errorCount,
         results: normalized
     });
+});
+
+app.get('/search', async (req, res) => {
+    const { q, limit } = req.query;
+
+    if (!q || typeof q !== 'string' || !q.trim()) {
+        logger.warn('Bad request: q missing', { reqId: req.id, query: req.query });
+        return res.status(400).json({ error: 'q (search query) is required' });
+    }
+
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+
+    logger.info('Search request', { reqId: req.id, q, limit: parsedLimit });
+
+    try {
+        const t0 = Date.now();
+        const products = await searchProducts(q, { limit: parsedLimit });
+        logger.info('Search complete', {
+            reqId: req.id,
+            duration_ms: Date.now() - t0,
+            count: products.length
+        });
+        res.json({ query: q, count: products.length, results: products });
+    } catch (err) {
+        logger.error('Search failed', { reqId: req.id, message: err.message, stack: err.stack });
+        return res.status(500).json({ error: 'search_failed', message: err.message });
+    }
 });
 
 app.get('/affiliate-links', async (req, res) => {

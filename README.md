@@ -186,6 +186,47 @@ Fields:
 
 Run `npm run login` again to refresh the session.
 
+### `GET /search`
+
+Scrapes Mercado Livre search results for a query and returns structured product data (title, price, thumbnail, seller, direct product URL). Renders the page with Puppeteer using the session cookies from `session.json` — `lista.mercadolivre.com.br` flags plain HTTP requests as bots even with a valid session cookie, so a raw `fetch`/`curl` isn't enough.
+
+**Request**
+
+```
+GET /search?q=whey+protein&limit=20
+```
+
+Query params:
+- `q` (required) — free-text search query
+- `limit` (optional) — max results, 1–50, defaults to 20
+
+**Response (200)**
+
+```json
+{
+  "query": "whey protein",
+  "count": 2,
+  "results": [
+    {
+      "title": "Whey Protein 1kg Whey Pro Max Titanium Sabor Chocolate BCAA e Aminoácidos",
+      "url": "https://www.mercadolivre.com.br/p/MLB6087972",
+      "itemId": "MLB5456967392",
+      "productId": "MLB6087972",
+      "price": 76.97,
+      "originalPrice": 119,
+      "thumbnail": "https://http2.mlstatic.com/...",
+      "seller": "MAX TITANIUM por Alpex Sports Nutrition",
+      "freeShipping": false,
+      "sponsored": false
+    }
+  ]
+}
+```
+
+`url` is always a plain `/p/<productId>` permalink — never an ad-click redirect (`click1.mercadolivre.com.br`), even for `sponsored: true` results. Feed `url` straight into `POST /affiliate-links` to generate an affiliate link for any result.
+
+Same `session_expired` behavior as `/affiliate-links` (401, auto re-login retried once).
+
 ### `GET /affiliate-links`
 
 Returns all cached links.
@@ -261,6 +302,7 @@ The URL isn't a valid Mercado Livre product page. Make sure the URL has a produc
 .
 ├── Meli_Login.js            # Puppeteer + Gmail OTP login flow
 ├── createAffiliateLink.js   # Mercado Livre API client (used by server)
+├── scrapeSearch.js          # Mercado Livre search-results scraper (used by server)
 ├── server.js                # Express HTTP API
 ├── test/
 │   ├── fixtures/
