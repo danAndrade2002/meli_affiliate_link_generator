@@ -1,5 +1,7 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const { getProxyLaunchArgs, authenticateProxy } = require('./proxy');
+require('dotenv').config();
 
 puppeteer.use(StealthPlugin());
 
@@ -95,11 +97,12 @@ async function searchProducts(query, options = {}) {
 
     const browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled']
+        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', ...getProxyLaunchArgs()]
     });
 
     try {
         const page = await browser.newPage();
+        await authenticateProxy(page);
         await page.setViewport({ width: 1280, height: 800 });
 
         const url = buildSearchUrl(query);

@@ -5,6 +5,7 @@ const { authenticate } = require('@google-cloud/local-auth');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
+const { getProxyLaunchArgs, authenticateProxy } = require('./proxy');
 require('dotenv').config();
 
 puppeteer.use(StealthPlugin());
@@ -149,9 +150,10 @@ async function runLoginFlow() {
 
     const browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled']
+        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', ...getProxyLaunchArgs()]
     });
     const page = await browser.newPage();
+    await authenticateProxy(page);
     const timeout = 15000;
     page.setDefaultTimeout(timeout);
 

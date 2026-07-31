@@ -68,6 +68,12 @@ LOG_LEVEL=info                 # debug | info | warn | error
 
 # Optional: require an API key on every request
 # API_KEY=some-secret-string
+
+# Optional: DataImpulse residential proxy (Brazil-only exit IPs)
+# PROXY_HOST=gw.dataimpulse.com
+# PROXY_PORT=823
+# PROXY_USERNAME=your_dataimpulse_login
+# PROXY_PASSWORD=your_dataimpulse_password
 ```
 
 ### 3. Run the login flow — generates `session.json`

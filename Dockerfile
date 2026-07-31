@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY server.js createAffiliateLink.js scrapeSearch.js Meli_Login.js db.js ./
+COPY server.js createAffiliateLink.js scrapeSearch.js Meli_Login.js db.js proxy.js ./
 
 RUN chown -R pptruser:pptruser /app
 USER pptruser
