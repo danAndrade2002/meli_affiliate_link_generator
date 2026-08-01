@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { createAffiliateLink, SessionExpiredError } = require('./createAffiliateLink');
 const { searchProducts } = require('./scrapeSearch');
 const { runLoginFlow } = require('./Meli_Login');
+const { isProxyConfigured } = require('./proxy');
 const db = require('./db');
 require('dotenv').config();
 
@@ -240,7 +241,7 @@ app.get('/search', async (req, res) => {
 
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
 
-    logger.info('Search request', { reqId: req.id, q, limit: parsedLimit });
+    logger.info('Search request', { reqId: req.id, q, limit: parsedLimit, proxy_enabled: isProxyConfigured() });
 
     try {
         const t0 = Date.now();
@@ -248,7 +249,8 @@ app.get('/search', async (req, res) => {
         logger.info('Search complete', {
             reqId: req.id,
             duration_ms: Date.now() - t0,
-            count: products.length
+            count: products.length,
+            proxy_enabled: isProxyConfigured()
         });
         res.json({ query: q, count: products.length, results: products });
     } catch (err) {

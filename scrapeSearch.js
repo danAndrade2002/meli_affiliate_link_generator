@@ -1,9 +1,20 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const { getProxyLaunchArgs, authenticateProxy } = require('./proxy');
+const { getProxyLaunchArgs, authenticateProxy, isProxyConfigured, getExitIp } = require('./proxy');
 require('dotenv').config();
 
 puppeteer.use(StealthPlugin());
+
+/**
+ * True if a URL indicates Mercado Livre has redirected the request to a
+ * login/verification/bot-check page instead of serving results.
+ */
+function isBlockedUrl(url) {
+    return url.includes('/account-verification')
+        || url.includes('/gz/login')
+        || url.includes('/jms/')
+        || url.includes('/security/');
+}
 
 /**
  * Builds a lista.mercadolivre.com.br search URL from a free-text query,
@@ -59,9 +70,15 @@ function extractProducts(limit) {
         const priceFraction = card.querySelector('.poly-price__current .andes-money-amount__fraction')?.textContent?.trim();
         const priceCents = card.querySelector('.poly-price__current .andes-money-amount__cents')?.textContent?.trim();
         const originalPriceFraction = card.querySelector('s.andes-money-amount--previous .andes-money-amount__fraction')?.textContent?.trim();
-        const thumbnail = card.querySelector('img')?.getAttribute('src')
-            || card.querySelector('img')?.getAttribute('data-src')
-            || null;
+        // Product photo is the sole img.poly-component__picture in the card (verified
+        // against live markup: src is always a real http2.mlstatic.com URL, not a lazy
+        // placeholder). Fall back to a generic img/data-src lookup in case the class
+        // name ever changes, and treat a data: URI as an unloaded placeholder.
+        const image = card.querySelector('img.poly-component__picture') || card.querySelector('img');
+        const imageSrc = image?.getAttribute('src');
+        const thumbnail = (imageSrc && !imageSrc.startsWith('data:'))
+            ? imageSrc
+            : image?.getAttribute('data-src') || null;
         const seller = card.querySelector('.poly-component__seller')?.textContent?.trim() || null;
         const freeShipping = !!card.querySelector('.poly-component__shipping');
 
@@ -102,20 +119,55 @@ async function searchProducts(query, options = {}) {
 
     try {
         const page = await browser.newPage();
-        await authenticateProxy(page);
+        const sessionId = await authenticateProxy(page);
+        console.log(`[scrapeSearch] proxy ${isProxyConfigured() ? 'enabled' : 'disabled'}`, sessionId ? { sessionId } : {});
+
+        if (isProxyConfigured() && process.env.LOG_LEVEL === 'debug') {
+            const exitIp = await getExitIp(page);
+            console.log(`[scrapeSearch] proxy exit IP: ${exitIp || 'unknown (IP check failed)'}`);
+        }
+
+        // Logs proxy config + exit IP at the moment a block is detected - the IP tells
+        // us whether we're going out over the residential proxy (and it's flagged) or
+        // over the host's own IP (proxy env vars missing/misconfigured on this deploy).
+        const logBlocked = async (reason, blockedUrl) => {
+            const exitIp = await getExitIp(page);
+            console.warn(`[scrapeSearch] BLOCKED query="${query}" reason="${reason}" proxy=${isProxyConfigured() ? 'enabled' : 'DISABLED'} exitIp=${exitIp || 'unknown'} url=${blockedUrl}`);
+        };
+
         await page.setViewport({ width: 1280, height: 800 });
 
         const url = buildSearchUrl(query);
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-        const finalUrl = page.url();
-        if (finalUrl.includes('/account-verification') || finalUrl.includes('/gz/login') || finalUrl.includes('/jms/')) {
-            throw new Error(`Redirected to ${finalUrl}. Search blocked or flagged as a bot.`);
+        if (isBlockedUrl(page.url())) {
+            await logBlocked('redirected after initial navigation', page.url());
+            throw new Error(`Redirected to ${page.url()}. Search blocked or flagged as a bot.`);
         }
 
-        await page.waitForSelector('li.ui-search-layout__item', { timeout: 10000 }).catch(() => {});
+        // Mercado Livre also runs a client-side bot/proof-of-work challenge that only
+        // redirects *after* the initial goto settles (no new network activity while it
+        // computes, so networkidle2 fires on the challenge page itself). Re-check the
+        // URL once we're done waiting for cards so that case surfaces as an error too,
+        // instead of silently falling through to a 0-result page.evaluate.
+        const foundSelector = await page.waitForSelector('li.ui-search-layout__item', { timeout: 10000 })
+            .then(() => true)
+            .catch(() => false);
 
-        return await page.evaluate(extractProducts, limit);
+        if (!foundSelector && isBlockedUrl(page.url())) {
+            await logBlocked('redirected while waiting for results (bot challenge)', page.url());
+            throw new Error(`Redirected to ${page.url()} while waiting for results. Search blocked or flagged as a bot.`);
+        }
+
+        const products = await page.evaluate(extractProducts, limit);
+
+        console.log(`[scrapeSearch] query="${query}" foundSelector=${foundSelector} cardCount=${products.length} url=${page.url()} title="${await page.title()}"`);
+
+        if (products.length === 0) {
+            await logBlocked('page loaded normally but no product cards found', page.url());
+        }
+
+        return products;
     } finally {
         await browser.close();
     }
